@@ -21,13 +21,13 @@ export function OceanSidebar({ collapsed = false, onToggle }: OceanSidebarProps)
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const path1Ref = useRef(null);
-  const path2Ref = useRef(null);
-  const path3Ref = useRef(null);
-  const foamPathRef = useRef(null);
-  const clipPathRef = useRef(null);
-  const canvasRef = useRef(null);
-  const bubbles = useRef([]);
+  const path1Ref = useRef<SVGPathElement | null>(null);
+  const path2Ref = useRef<SVGPathElement | null>(null);
+  const path3Ref = useRef<SVGPathElement | null>(null);
+  const foamPathRef = useRef<SVGPathElement | null>(null);
+  const clipPathRef = useRef<SVGPathElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const bubbles = useRef<Array<{ x: number; y: number; size: number; speed: number; life: number }>>([]);
 
   // The physics spring gives the wave its natural momentum and bounce
   const sidebarWidth = useSpring(isHovered ? 260 : 72, {
