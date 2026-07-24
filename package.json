@@ -1,0 +1,15 @@
+{
+  "name": "@turtol/ocean-sidebar",
+  "version": "1.0.0",
+  "description": "High-performance 60fps organic ocean wave physics sidebar component",
+  "main": "OceanSidebar.tsx",
+  "keywords": ["react", "framer-motion", "ocean", "wave", "sidebar", "physics"],
+  "author": "DeepTurtol Team",
+  "license": "MIT",
+  "peerDependencies": {
+    "framer-motion": "^11.0.0 || ^12.0.0",
+    "lucide-react": "^0.400.0",
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  }
+}
