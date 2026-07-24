@@ -2,10 +2,24 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSpring, useAnimationFrame, motion } from 'framer-motion';
 import { Home, Search, Library, Settings } from 'lucide-react';
 
-export default function App() {
+export interface OceanSidebarProps {
+  collapsed?: boolean;
+  onToggle?: () => void;
+}
+
+export function OceanSidebar({ collapsed = false, onToggle }: OceanSidebarProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [activeItem, setActiveItem] = useState('Home');
-  const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
+  const [windowSize, setWindowSize] = useState({ width: 1200, height: 800 });
+
+  useEffect(() => {
+    setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+    const handleResize = () => {
+      setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const path1Ref = useRef(null);
   const path2Ref = useRef(null);
@@ -14,14 +28,6 @@ export default function App() {
   const clipPathRef = useRef(null);
   const canvasRef = useRef(null);
   const bubbles = useRef([]);
-
-  useEffect(() => {
-    const handleResize = () => {
-      setWindowSize({ width: window.innerWidth, height: window.innerHeight });
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   // The physics spring gives the wave its natural momentum and bounce
   const sidebarWidth = useSpring(isHovered ? 260 : 72, {
@@ -68,7 +74,7 @@ export default function App() {
       const y = i * segmentHeight;
       
       // Helper to calculate X for a specific layer
-      const getX = (layerOffset) => {
+      const getX = (layerOffset: number) => {
         const timeOffset = t * 1.5 + layerOffset * 2.3;
         let xOffset = Math.sin(y * frequency * 2.2 + timeOffset + currentWidth * 0.01) * amplitude;
         xOffset += Math.sin(y * frequency * 4.5 - timeOffset * 0.8) * (amplitude * 0.5);
@@ -109,39 +115,41 @@ export default function App() {
     const canvas = canvasRef.current;
     if (canvas) {
       const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // Update and draw bubbles
-      for (let i = bubbles.current.length - 1; i >= 0; i--) {
-        const b = bubbles.current[i];
-        b.y -= b.speed;
-        b.x += Math.sin(b.y * 0.05 + t * 2) * 0.5; // Wobble
-        b.life -= 0.01;
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Update and draw bubbles
+        for (let i = bubbles.current.length - 1; i >= 0; i--) {
+          const b = bubbles.current[i];
+          b.y -= b.speed;
+          b.x += Math.sin(b.y * 0.05 + t * 2) * 0.5; // Wobble
+          b.life -= 0.01;
+          
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(255, 255, 255, ${b.life})`;
+          ctx.fill();
+          
+          if (b.life <= 0) bubbles.current.splice(i, 1);
+        }
+        
+        // Draw specular highlight travelling along the crest
+        const highlightY = (t * 120) % height;
+        const highlightWidth = currentWidth + Math.sin(highlightY * 0.01 + t) * 15;
         
         ctx.beginPath();
-        ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255, 255, 255, ${b.life})`;
-        ctx.fill();
+        const gradient = ctx.createRadialGradient(highlightWidth - 5, highlightY, 0, highlightWidth - 5, highlightY, 30);
+        gradient.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
+        gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
         
-        if (b.life <= 0) bubbles.current.splice(i, 1);
+        ctx.fillStyle = gradient;
+        ctx.arc(highlightWidth - 5, highlightY, 30, 0, Math.PI * 2);
+        ctx.fill();
       }
-      
-      // Draw specular highlight travelling along the crest
-      const highlightY = (t * 120) % height;
-      const highlightWidth = currentWidth + Math.sin(highlightY * 0.01 + t) * 15;
-      
-      ctx.beginPath();
-      const gradient = ctx.createRadialGradient(highlightWidth - 5, highlightY, 0, highlightWidth - 5, highlightY, 30);
-      gradient.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
-      gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-      
-      ctx.fillStyle = gradient;
-      ctx.arc(highlightWidth - 5, highlightY, 30, 0, Math.PI * 2);
-      ctx.fill();
     }
   });
 
-  const handleInteraction = (e, itemName) => {
+  const handleInteraction = (e: React.MouseEvent<HTMLButtonElement>, itemName: string) => {
     setActiveItem(itemName);
     const rect = e.currentTarget.getBoundingClientRect();
     
@@ -278,3 +286,5 @@ export default function App() {
     </div>
   );
 }
+
+export default OceanSidebar;
