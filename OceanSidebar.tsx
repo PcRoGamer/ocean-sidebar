@@ -64,11 +64,13 @@ export function OceanSidebar({
     const velocity = sidebarWidth.getVelocity();
 
     // Wave swells out when expanding. When retracting, it flattens smoothly.
-    const velocitySwell = velocity > 0 ? velocity * 0.1 : 0; 
+    // Clamp the velocity swell so it doesn't get erratic or too sharp
+    const velocitySwell = velocity > 0 ? Math.min(18, velocity * 0.04) : 0; 
     
     // Scale down amplitude when sidebar is thin
     const widthScale = Math.min(1, currentWidth / 200);
-    const amplitude = (12 + velocitySwell) * widthScale; 
+    const baseAmplitude = 12 * widthScale;
+    const amplitude = baseAmplitude + velocitySwell; 
 
     const frequency = 0.0025; // Smoother, wider peaks
     const numPoints = 40; // Increased fidelity for smoother soft-max combining
@@ -80,7 +82,8 @@ export function OceanSidebar({
 
     // Decreased offset for a tighter, subtle seafoam outline
     const foamOffsetBase = 8; 
-    const foamVelocityPush = Math.max(0, velocity * 0.1); // Pushes ahead during expansion
+    // Clamp foam push to prevent it from shooting out wildly
+    const foamVelocityPush = velocity > 0 ? Math.min(12, velocity * 0.02) : 0; 
     let pathFoam = `M 0,0 L ${currentWidth + foamOffsetBase + foamVelocityPush},0 `;
 
     // Soft-max parameter for organic blending (lower = smoother, rounder bubbly edges)
@@ -91,11 +94,23 @@ export function OceanSidebar({
       
       // Helper to calculate X for a specific layer
       const getX = (layerOffset: number) => {
-        const timeOffset = t * 1.5 + layerOffset * 2.3;
+        // Increased phase separation so the waves weave through each other more distinctly
+        const timeOffset = t * 1.2 + layerOffset * 3.5;
+        
+        // Primary smooth wave
         let xOffset = Math.sin(y * frequency * 2.2 + timeOffset + currentWidth * 0.01) * amplitude;
-        xOffset += Math.sin(y * frequency * 4.5 - timeOffset * 0.8) * (amplitude * 0.5);
-        const parallaxLag = (layerOffset * velocity * -0.015);
-        return currentWidth + xOffset + parallaxLag;
+        
+        // Secondary detail wave
+        const detailAmplitude = (baseAmplitude * 0.5) + (velocitySwell * 0.2); 
+        xOffset += Math.sin(y * frequency * 4.2 - timeOffset * 0.8) * detailAmplitude;
+        
+        // Offset deeper layers to the right so they proudly peek out from behind the front layer
+        const staticSpread = layerOffset * 12; 
+        
+        // Increased parallax lag slightly for a better "wash" effect during expansion
+        const parallaxLag = (layerOffset * velocity * -0.012); 
+        
+        return currentWidth + xOffset + parallaxLag + staticSpread;
       };
 
       const xFront = getX(0); // Front glass layer
@@ -219,19 +234,19 @@ export function OceanSidebar({
           <clipPath id="waterClip">
             <path ref={clipPathRef} />
           </clipPath>
-          {/* Brighter Teal/Cyan gradient for the front wave */}
+          {/* Luminous Teal/Cyan gradient for the front glass wave - Adjusted for higher transparency */}
           <linearGradient id="glassGradient" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="rgba(8, 110, 125, 0.95)" />
-            <stop offset="100%" stopColor="rgba(34, 211, 238, 0.7)" />
+            <stop offset="0%" stopColor="rgba(8, 145, 178, 0.75)" />
+            <stop offset="100%" stopColor="rgba(103, 232, 249, 0.55)" />
           </linearGradient>
         </defs>
         
         {/* Foam Layer - Solid White, pushed slightly forward */}
-        <path ref={foamPathRef} fill="rgba(255, 255, 255, 0.9)" />
-        {/* Back Layer - Deep Teal */}
-        <path ref={path1Ref} fill="rgba(4, 75, 86, 0.95)" />
-        {/* Middle Layer - Vibrant Teal */}
-        <path ref={path2Ref} fill="rgba(13, 148, 166, 0.85)" />
+        <path ref={foamPathRef} fill="rgba(255, 255, 255, 0.85)" />
+        {/* Back Layer - Bright cyan, lowered opacity to look like thinner water */}
+        <path ref={path1Ref} fill="rgba(6, 182, 212, 0.55)" />
+        {/* Middle Layer - Rich marine teal, semi-transparent to create a deep shadow overlay */}
+        <path ref={path2Ref} fill="rgba(21, 94, 117, 0.65)" />
         {/* Front Glass Layer */}
         <path ref={path3Ref} fill="url(#glassGradient)" />
       </svg>
