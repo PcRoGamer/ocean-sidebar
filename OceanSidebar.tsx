@@ -261,22 +261,6 @@ export function OceanSidebar({
         className="absolute inset-0 z-[15] pointer-events-none"
       />
 
-      {/* Glassmorphic Toggle Button inside OceanSidebar */}
-      {onToggle && (
-        <button
-          onClick={onToggle}
-          className="absolute top-3 left-3 z-[30] flex h-9 w-9 items-center justify-center rounded-xl border border-white/35 bg-white/20 text-white shadow-lg backdrop-blur-md transition-all duration-200 hover:scale-105 hover:bg-white/30 active:scale-95 cursor-pointer"
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {collapsed ? (
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m14 9 3 3-3 3"/></svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/></svg>
-          )}
-        </button>
-      )}
-
       {/* Content Layer — either children (integration mode) or built-in demo nav */}
       {children !== undefined && children !== null ? (
         <motion.div
