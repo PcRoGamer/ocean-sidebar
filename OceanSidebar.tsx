@@ -5,8 +5,8 @@ import { Home, Search, Library, Settings } from 'lucide-react';
 export interface OceanSidebarProps {
   collapsed?: boolean;
   onToggle?: () => void;
-  /** When provided as JSX or render function receiving spawnBubbles callback */
-  children?: ReactNode | ((spawnBubbles: (e: React.MouseEvent) => void) => ReactNode);
+  /** When provided as JSX or render function receiving (spawnBubbles, isExpanded, isHovered) */
+  children?: ReactNode | ((spawnBubbles: (e: React.MouseEvent) => void, isExpanded: boolean, isHovered: boolean) => ReactNode);
   /** Width of the expanded sidebar in px (default 275) */
   expandedWidth?: number;
   /** Width of the collapsed rail in px (default 52) */
@@ -24,9 +24,8 @@ export function OceanSidebar({
   const [activeItem, setActiveItem] = useState('Home');
   const [windowSize, setWindowSize] = useState({ width: 1200, height: 800 });
 
-  // Drive wave by collapsed prop when children are provided (integration mode),
-  // or by hover when standalone
-  const isExpanded = children ? !collapsed : isHovered;
+  // Auto-expand on hover even when collapsed
+  const isExpanded = (!collapsed) || isHovered;
 
   useEffect(() => {
     setWindowSize({ width: window.innerWidth, height: window.innerHeight });
@@ -215,8 +214,8 @@ export function OceanSidebar({
         overflow: 'visible',
         flexShrink: 0,
       }}
-      onMouseEnter={!children ? () => setIsHovered(true) : undefined}
-      onMouseLeave={!children ? () => setIsHovered(false) : undefined}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
       {/* 
         This is where the magic happens. The glass blur is mathematically clipped to the 
@@ -267,7 +266,7 @@ export function OceanSidebar({
           className="relative z-[20] h-full flex flex-col"
           style={{ width: sidebarWidth }}
         >
-          {typeof children === 'function' ? children(spawnBubbles) : children}
+          {typeof children === 'function' ? children(spawnBubbles, isExpanded, isHovered) : children}
         </motion.div>
       ) : (
         /* ── Standalone Demo Mode ── */
