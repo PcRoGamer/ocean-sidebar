@@ -259,8 +259,24 @@ export function OceanSidebar({
         className="absolute inset-0 z-[15] pointer-events-none"
       />
 
+      {/* Glassmorphic Toggle Button inside OceanSidebar */}
+      {onToggle && (
+        <button
+          onClick={onToggle}
+          className="absolute top-3 left-3 z-[30] flex h-9 w-9 items-center justify-center rounded-xl border border-white/35 bg-white/20 text-white shadow-lg backdrop-blur-md transition-all duration-200 hover:scale-105 hover:bg-white/30 active:scale-95 cursor-pointer"
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {collapsed ? (
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m14 9 3 3-3 3"/></svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/></svg>
+          )}
+        </button>
+      )}
+
       {/* Content Layer — either children (integration mode) or built-in demo nav */}
-      {children ? (
+      {children !== undefined && children !== null ? (
         <motion.div
           className="relative z-[20] h-full flex flex-col"
           style={{ width: sidebarWidth }}
@@ -270,7 +286,7 @@ export function OceanSidebar({
       ) : (
         /* ── Standalone Demo Mode ── */
         <motion.nav 
-          className="relative z-[20] h-full flex flex-col pt-12 pb-8"
+          className="relative z-[20] h-full flex flex-col pt-14 pb-8"
           style={{ width: sidebarWidth }}
         >
           <div className="flex-1 px-4 space-y-4 relative w-full overflow-hidden">
@@ -316,13 +332,13 @@ export function OceanSidebar({
           </div>
 
           {/* Collapsed UI state (always visible when sidebar is thin) */}
-          <div className={`absolute top-12 left-0 w-[72px] flex flex-col space-y-4 items-center transition-opacity duration-300 ${isHovered ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+          <div className={`absolute top-14 left-0 w-[52px] flex flex-col space-y-4 items-center transition-opacity duration-300 ${isHovered ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
              {navItems.map((item) => (
-               <div key={item.name + 'collapsed'} className="w-12 h-12 flex justify-center items-center relative">
+               <div key={item.name + 'collapsed'} className="w-10 h-10 flex justify-center items-center relative">
                  {activeItem === item.name && (
-                    <div className="absolute left-[-16px] w-1 h-6 bg-cyan-300 rounded-r-full shadow-[0_0_10px_rgba(103,232,249,0.7)]" />
+                    <div className="absolute left-[-12px] w-1 h-6 bg-cyan-300 rounded-r-full shadow-[0_0_10px_rgba(103,232,249,0.7)]" />
                  )}
-                 <item.icon size={22} className={activeItem === item.name ? "text-cyan-300" : "text-white/60"} />
+                 <item.icon size={20} className={activeItem === item.name ? "text-cyan-300" : "text-white/60"} />
                </div>
              ))}
           </div>
