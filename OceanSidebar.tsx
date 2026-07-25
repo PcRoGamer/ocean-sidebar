@@ -5,8 +5,8 @@ import { Home, Search, Library, Settings } from 'lucide-react';
 export interface OceanSidebarProps {
   collapsed?: boolean;
   onToggle?: () => void;
-  /** When provided, replaces the built-in demo nav with real application content */
-  children?: ReactNode;
+  /** When provided as JSX or render function receiving spawnBubbles callback */
+  children?: ReactNode | ((spawnBubbles: (e: React.MouseEvent) => void) => ReactNode);
   /** Width of the expanded sidebar in px (default 275) */
   expandedWidth?: number;
   /** Width of the collapsed rail in px (default 52) */
@@ -180,20 +180,22 @@ export function OceanSidebar({
     }
   });
 
-  const handleInteraction = (e: React.MouseEvent<HTMLButtonElement>, itemName: string) => {
-    setActiveItem(itemName);
+  const spawnBubbles = (e: React.MouseEvent) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    
-    // Spawn bubbles on interaction
-    for(let i=0; i<3; i++) {
+    for (let i = 0; i < 4; i++) {
       bubbles.current.push({
-        x: rect.left + 20 + Math.random() * 20,
-        y: rect.top + 20 + Math.random() * 10,
-        size: Math.random() * 2 + 1,
-        speed: Math.random() * 1 + 0.5,
+        x: rect.left + 15 + Math.random() * 25,
+        y: rect.top + 15 + Math.random() * 10,
+        size: Math.random() * 2.5 + 1,
+        speed: Math.random() * 1.2 + 0.6,
         life: 1
       });
     }
+  };
+
+  const handleInteraction = (e: React.MouseEvent<HTMLButtonElement>, itemName: string) => {
+    setActiveItem(itemName);
+    spawnBubbles(e);
   };
 
   // Built-in demo nav items (only used when no children provided)
@@ -281,7 +283,7 @@ export function OceanSidebar({
           className="relative z-[20] h-full flex flex-col"
           style={{ width: sidebarWidth }}
         >
-          {children}
+          {typeof children === 'function' ? children(spawnBubbles) : children}
         </motion.div>
       ) : (
         /* ── Standalone Demo Mode ── */
