@@ -42,6 +42,7 @@ export function OceanSidebar({
   const foamPathRef = useRef<SVGPathElement | null>(null);
   const clipPathRef = useRef<SVGPathElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const bubbles = useRef<Array<{ x: number; y: number; size: number; speed: number; life: number }>>([]);
 
   // The physics spring gives the wave its natural momentum and bounce
@@ -141,6 +142,14 @@ export function OceanSidebar({
     if (path1Ref.current) path1Ref.current.setAttribute('d', pathBack);
     if (foamPathRef.current) foamPathRef.current.setAttribute('d', pathFoam);
 
+    // Sync root div width with the maximum wave extent so sibling flex items
+    // (the main content area) reserve space for the waves and never overlap.
+    if (rootRef.current) {
+      // The foam path is always the outermost; use it as the authoritative width.
+      // Add a small buffer for the foam's visual softness.
+      rootRef.current.style.width = `${currentWidth + foamOffsetBase + foamVelocityPush + 5}px`;
+    }
+
     // 2. Handle Canvas Canvas Particles and Specular Highlight
     const canvas = canvasRef.current;
     if (canvas) {
@@ -207,6 +216,7 @@ export function OceanSidebar({
 
   return (
     <div 
+      ref={rootRef}
       className="ocean-sidebar-root"
       style={{
         position: 'relative',
