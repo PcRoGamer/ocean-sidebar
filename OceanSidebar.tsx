@@ -2,11 +2,21 @@ import React, { useState, useEffect, useRef, type ReactNode } from 'react';
 import { useSpring, useAnimationFrame, motion } from 'framer-motion';
 import { Home, Search, Library, Settings } from 'lucide-react';
 
+function seededUnit(seed: number) {
+  const value = Math.sin(seed * 12.9898) * 43758.5453;
+  return value - Math.floor(value);
+}
+
 export interface OceanSidebarProps {
   collapsed?: boolean;
   onToggle?: () => void;
-  /** When provided as JSX or render function receiving (spawnBubbles, isExpanded, isHovered) */
-  children?: ReactNode | ((spawnBubbles: (e: React.MouseEvent) => void, isExpanded: boolean, isHovered: boolean) => ReactNode);
+  /** When provided as JSX or render function receiving interaction and expansion controls. */
+  children?: ReactNode | ((
+    spawnBubbles: (e: React.MouseEvent) => void,
+    isExpanded: boolean,
+    isHovered: boolean,
+    toggleSidebar: () => void,
+  ) => ReactNode);
   /** Width of the expanded sidebar in px (default 275) */
   expandedWidth?: number;
   /** Width of the collapsed rail in px (default 52) */
@@ -20,12 +30,55 @@ export function OceanSidebar({
   expandedWidth = 275,
   collapsedWidth = 52,
 }: OceanSidebarProps) {
+  // Visual shell only. In app mode, SidebarShell supplies children containing
+  // navigation and footer controls; the built-in demo nav is fallback-only.
   const [isHovered, setIsHovered] = useState(false);
+  const [hoverPreview, setHoverPreview] = useState(false);
   const [activeItem, setActiveItem] = useState('Home');
   const [windowSize, setWindowSize] = useState({ width: 1200, height: 800 });
+  const hoverIntentTimerRef = useRef<number | null>(null);
+  const washStageTimersRef = useRef<number[]>([]);
+  const bubbleSequenceRef = useRef(0);
 
-  // Auto-expand on hover even when collapsed
-  const isExpanded = (!collapsed) || isHovered;
+  // ``collapsed`` means unpinned/auto. Hover opens a temporary preview; pinning
+  // converts that preview into a persistent expanded sidebar.
+  const isExpanded = !collapsed || hoverPreview;
+
+  const clearHoverIntent = () => {
+    if (hoverIntentTimerRef.current !== null) {
+      window.clearTimeout(hoverIntentTimerRef.current);
+      hoverIntentTimerRef.current = null;
+    }
+  };
+
+  const clearWashStages = () => {
+    washStageTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    washStageTimersRef.current = [];
+  };
+
+  const handleMouseEnter = () => {
+    setIsHovered(true);
+    if (!collapsed) return;
+    clearHoverIntent();
+    hoverIntentTimerRef.current = window.setTimeout(() => {
+      setHoverPreview(true);
+      hoverIntentTimerRef.current = null;
+    }, 120);
+  };
+
+  const handleMouseLeave = () => {
+    clearHoverIntent();
+    setIsHovered(false);
+    setHoverPreview(false);
+  };
+
+  const handleToggle = () => {
+    clearHoverIntent();
+    // Unpinning while the pointer is still inside returns to auto-preview
+    // instead of snapping shut. The water recedes when the pointer leaves.
+    setHoverPreview(collapsed ? false : isHovered);
+    onToggle?.();
+  };
 
   useEffect(() => {
     setWindowSize({ width: window.innerWidth, height: window.innerHeight });
@@ -33,16 +86,27 @@ export function OceanSidebar({
       setWindowSize({ width: window.innerWidth, height: window.innerHeight });
     };
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearHoverIntent();
+      clearWashStages();
+    };
   }, []);
 
   const path1Ref = useRef<SVGPathElement | null>(null);
   const path2Ref = useRef<SVGPathElement | null>(null);
   const path3Ref = useRef<SVGPathElement | null>(null);
   const foamPathRef = useRef<SVGPathElement | null>(null);
+  const wetSandPathRef = useRef<SVGPathElement | null>(null);
+  const dampSandPathRef = useRef<SVGPathElement | null>(null);
   const clipPathRef = useRef<SVGPathElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const wetSandEdgesRef = useRef<number[]>([]);
+  const dampSandEdgesRef = useRef<number[]>([]);
+  const wetSandStrengthRef = useRef(0);
+  const dampSandStrengthRef = useRef(0);
+  const lastFrameTimeRef = useRef<number | null>(null);
   const bubbles = useRef<Array<{ x: number; y: number; size: number; speed: number; life: number }>>([]);
 
   // The physics spring gives the wave its natural momentum and bounce
@@ -51,40 +115,121 @@ export function OceanSidebar({
     damping: 18,
     mass: 0.9,
   });
+  const midWaveWidth = useSpring(
+    isExpanded ? expandedWidth : collapsedWidth,
+    {
+      stiffness: 112,
+      damping: 18,
+      mass: 0.92,
+    },
+  );
+  const backWaveWidth = useSpring(
+    isExpanded ? expandedWidth : collapsedWidth,
+    {
+      stiffness: 105,
+      damping: 17,
+      mass: 0.98,
+    },
+  );
+  const foamWaveWidth = useSpring(
+    isExpanded ? expandedWidth : collapsedWidth,
+    {
+      stiffness: 96,
+      damping: 16,
+      mass: 1,
+    },
+  );
 
   useEffect(() => {
-    sidebarWidth.set(isExpanded ? expandedWidth : collapsedWidth);
-  }, [isExpanded, sidebarWidth, expandedWidth, collapsedWidth]);
+    clearWashStages();
+    const targetWidth = isExpanded ? expandedWidth : collapsedWidth;
+
+    if (isExpanded) {
+      // Water reaches across from left to right in layers: the undertow and
+      // foam lead, teal follows, then the glass/content layer settles.
+      backWaveWidth.set(targetWidth);
+      foamWaveWidth.set(targetWidth);
+      washStageTimersRef.current.push(
+        window.setTimeout(() => midWaveWidth.set(targetWidth), 42),
+        window.setTimeout(() => sidebarWidth.set(targetWidth), 82),
+      );
+    } else {
+      // Receding water reverses the layer order so foam lingers briefly at the
+      // shoreline instead of every layer shrinking as one ribbon.
+      sidebarWidth.set(targetWidth);
+      washStageTimersRef.current.push(
+        window.setTimeout(() => midWaveWidth.set(targetWidth), 42),
+        window.setTimeout(() => backWaveWidth.set(targetWidth), 84),
+        window.setTimeout(() => foamWaveWidth.set(targetWidth), 122),
+      );
+    }
+
+    return clearWashStages;
+  }, [
+    backWaveWidth,
+    collapsedWidth,
+    expandedWidth,
+    foamWaveWidth,
+    isExpanded,
+    midWaveWidth,
+    sidebarWidth,
+  ]);
 
   useAnimationFrame((time) => {
     const t = time / 1000;
     const height = windowSize.height;
+    const deltaSeconds =
+      lastFrameTimeRef.current === null
+        ? 1 / 60
+        : Math.min(0.05, Math.max(0, (time - lastFrameTimeRef.current) / 1000));
+    lastFrameTimeRef.current = time;
     
-    const currentWidth = sidebarWidth.get();
-    const velocity = sidebarWidth.getVelocity();
-
-    // Wave swells out when expanding. When retracting, it flattens smoothly.
-    // Clamp the velocity swell so it doesn't get erratic or too sharp
-    const velocitySwell = velocity > 0 ? Math.min(18, velocity * 0.04) : 0; 
+    const frontWidth = sidebarWidth.get();
+    const midWidth = midWaveWidth.get();
+    const backWidth = backWaveWidth.get();
+    const foamWidth = foamWaveWidth.get();
+    const frontVelocity = sidebarWidth.getVelocity();
+    const midVelocity = midWaveWidth.getVelocity();
+    const backVelocity = backWaveWidth.getVelocity();
+    const foamVelocity = foamWaveWidth.getVelocity();
+    const waveVelocity = Math.max(
+      Math.abs(frontVelocity),
+      Math.abs(midVelocity),
+      Math.abs(backVelocity),
+      Math.abs(foamVelocity),
+    );
+    const dominantWidth = Math.max(
+      frontWidth,
+      midWidth,
+      backWidth,
+      foamWidth,
+    );
     
     // Scale down amplitude when sidebar is thin
-    const widthScale = Math.min(1, currentWidth / 200);
+    const widthScale = Math.min(1, dominantWidth / 200);
     const baseAmplitude = 12 * widthScale;
-    const amplitude = baseAmplitude + velocitySwell; 
 
     const frequency = 0.0025; // Smoother, wider peaks
     const numPoints = 40; // Increased fidelity for smoother soft-max combining
     const segmentHeight = height / numPoints;
 
-    let pathFront = `M 0,0 L ${currentWidth},0 `;
-    let pathMid = `M 0,0 L ${currentWidth},0 `;
-    let pathBack = `M 0,0 L ${currentWidth},0 `;
+    let pathFront = `M 0,0 L ${frontWidth},0 `;
+    let pathMid = `M 0,0 L ${midWidth},0 `;
+    let pathBack = `M 0,0 L ${backWidth},0 `;
 
     // Decreased offset for a tighter, subtle seafoam outline
     const foamOffsetBase = 8; 
     // Clamp foam push to prevent it from shooting out wildly
-    const foamVelocityPush = velocity > 0 ? Math.min(12, velocity * 0.02) : 0; 
-    let pathFoam = `M 0,0 L ${currentWidth + foamOffsetBase + foamVelocityPush},0 `;
+    const foamVelocityPush = Math.min(12, waveVelocity * 0.02);
+    const outerLayerWidth = Math.max(frontWidth, midWidth, backWidth);
+    const foamLead = Math.max(
+      -8,
+      Math.min(18, foamWidth - outerLayerWidth),
+    );
+    let pathFoam =
+      `M 0,0 L ${outerLayerWidth + foamLead + foamOffsetBase + foamVelocityPush},0 `;
+    let maxFoamExtent = dominantWidth;
+    const foamEdgePoints: Array<{ x: number; y: number }> = [];
 
     // Soft-max parameter for organic blending (lower = smoother, rounder bubbly edges)
     const k = 0.4;
@@ -93,29 +238,62 @@ export function OceanSidebar({
       const y = i * segmentHeight;
       
       // Helper to calculate X for a specific layer
-      const getX = (layerOffset: number) => {
-        // Increased phase separation so the waves weave through each other more distinctly
-        const timeOffset = t * 1.2 + layerOffset * 3.5;
+      const getX = (
+        layerWidth: number,
+        layerOffset: number,
+        layerVelocity: number,
+      ) => {
+        const travelRange = Math.max(1, expandedWidth - collapsedWidth);
+        const layerProgress = Math.max(
+          0,
+          Math.min(1, (layerWidth - collapsedWidth) / travelRange),
+        );
+        // Tie the crest roll to horizontal travel. The sine still shapes a
+        // vertical shoreline, but its phase now advances with the x-position
+        // of each spring instead of merely drifting with elapsed time.
+        const travelPhase = layerProgress * Math.PI * 1.45;
+        const ambientPhase = t * 0.55 + layerOffset * 3.5;
+        const velocitySwell =
+          layerVelocity > 0 ? Math.min(18, layerVelocity * 0.04) : 0;
+        const amplitude = baseAmplitude + velocitySwell;
         
         // Primary smooth wave
-        let xOffset = Math.sin(y * frequency * 2.2 + timeOffset + currentWidth * 0.01) * amplitude;
+        let xOffset =
+          Math.sin(
+            y * frequency * 2.2 + ambientPhase + travelPhase,
+          ) * amplitude;
         
-        // Secondary detail wave
+        // The smaller detail wave counter-rolls slightly, creating the sense
+        // that water is folding forward rather than sliding as a rigid ribbon.
         const detailAmplitude = (baseAmplitude * 0.5) + (velocitySwell * 0.2); 
-        xOffset += Math.sin(y * frequency * 4.2 - timeOffset * 0.8) * detailAmplitude;
+        xOffset +=
+          Math.sin(
+            y * frequency * 4.2 -
+              ambientPhase * 0.8 +
+              travelPhase * 0.55,
+          ) * detailAmplitude;
         
         // Offset deeper layers to the right so they proudly peek out from behind the front layer
         const staticSpread = layerOffset * 12; 
         
-        // Increased parallax lag slightly for a better "wash" effect during expansion
-        const parallaxLag = (layerOffset * velocity * -0.012); 
+        // Each layer has its own horizontal spring. This small velocity offset
+        // makes the leading edge stretch naturally without introducing a
+        // vertical travelling ripple.
+        const parallaxLag = (layerOffset * layerVelocity * -0.004);
+        // A tiny damped horizontal sway gives each moving front a wing-like
+        // recoil. It is velocity-bound, so it disappears when the water rests.
+        const wingEnergy = Math.min(1, Math.abs(layerVelocity) / 520);
+        const wingOffset =
+          Math.sin(t * 10.5 + layerOffset * 0.9) *
+          (3.4 + layerOffset * 1.05) *
+          wingEnergy;
         
-        return currentWidth + xOffset + parallaxLag + staticSpread;
+        return layerWidth + xOffset + parallaxLag + wingOffset + staticSpread;
       };
 
-      const xFront = getX(0); // Front glass layer
-      const xMid = getX(1);   // Middle teal layer
-      const xBack = getX(2);  // Back dark layer
+      const xFront = getX(frontWidth, 0, frontVelocity); // Front glass layer
+      const xMid = getX(midWidth, 1, midVelocity);       // Middle teal layer
+      const xBack = getX(backWidth, 2, backVelocity);    // Back dark layer
 
       pathFront += `L ${xFront},${y} `;
       pathMid += `L ${xMid},${y} `;
@@ -127,8 +305,72 @@ export function OceanSidebar({
       const sum = Math.exp(k * (xFront - maxVal)) + Math.exp(k * (xMid - maxVal)) + Math.exp(k * (xBack - maxVal));
       const combinedX = maxVal + Math.log(sum) / k;
       
-      pathFoam += `L ${combinedX + foamOffsetBase + foamVelocityPush},${y} `;
+      const foamX =
+        combinedX + foamLead + foamOffsetBase + foamVelocityPush;
+      maxFoamExtent = Math.max(maxFoamExtent, foamX);
+      foamEdgePoints.push({ x: foamX, y });
+      pathFoam += `L ${foamX},${y} `;
     }
+
+    // The shoreline remembers where the water has been. Once the water
+    // recedes, its silhouette stays fixed and only its opacity evaporates.
+    // Moving the remembered edge inward looked like a second set of waves.
+    const maxWetExtent = expandedWidth + 72;
+    const holdHighWaterEdge = (
+      previous: number | undefined,
+      current: number,
+      strength: number,
+    ) => {
+      const boundedCurrent = Math.min(maxWetExtent, current);
+      if (isExpanded) {
+        return Math.max(previous ?? boundedCurrent, boundedCurrent);
+      }
+      return strength > 0 && previous !== undefined
+        ? previous
+        : boundedCurrent;
+    };
+
+    const wetSandEdges = foamEdgePoints.map((point, index) =>
+      holdHighWaterEdge(
+        wetSandEdgesRef.current[index],
+        point.x,
+        wetSandStrengthRef.current,
+      ),
+    );
+    const dampSandEdges = foamEdgePoints.map((point, index) =>
+      holdHighWaterEdge(
+        dampSandEdgesRef.current[index],
+        point.x,
+        dampSandStrengthRef.current,
+      ),
+    );
+
+    if (isExpanded) {
+      wetSandStrengthRef.current = 1;
+      dampSandStrengthRef.current = 1;
+    } else {
+      // Fresh wetness disappears first; its broader damp memory remains.
+      wetSandStrengthRef.current = Math.max(
+        0,
+        wetSandStrengthRef.current - deltaSeconds / 5.5,
+      );
+      dampSandStrengthRef.current = Math.max(
+        0,
+        dampSandStrengthRef.current - deltaSeconds / 13,
+      );
+    }
+    wetSandEdgesRef.current = wetSandEdges;
+    dampSandEdgesRef.current = dampSandEdges;
+
+    const buildShorePath = (edges: number[]) => {
+      let path = `M 0,0 L ${edges[0] ?? 0},0 `;
+      edges.forEach((x, index) => {
+        path += `L ${x},${index * segmentHeight} `;
+      });
+      return `${path}L 0,${height} Z`;
+    };
+    const pathWetSand = buildShorePath(wetSandEdges);
+    const pathDampSand = buildShorePath(dampSandEdges);
     
     pathFront += `L 0,${height} Z`;
     pathMid += `L 0,${height} Z`;
@@ -141,13 +383,32 @@ export function OceanSidebar({
     if (path2Ref.current) path2Ref.current.setAttribute('d', pathMid);
     if (path1Ref.current) path1Ref.current.setAttribute('d', pathBack);
     if (foamPathRef.current) foamPathRef.current.setAttribute('d', pathFoam);
+    if (wetSandPathRef.current) {
+      wetSandPathRef.current.setAttribute('d', pathWetSand);
+      wetSandPathRef.current.setAttribute(
+        'opacity',
+        wetSandStrengthRef.current.toFixed(3),
+      );
+    }
+    if (dampSandPathRef.current) {
+      dampSandPathRef.current.setAttribute('d', pathDampSand);
+      dampSandPathRef.current.setAttribute(
+        'opacity',
+        dampSandStrengthRef.current.toFixed(3),
+      );
+    }
 
     // Sync root div width with the maximum wave extent so sibling flex items
     // (the main content area) reserve space for the waves and never overlap.
     if (rootRef.current) {
-      // The foam path is always the outermost; use it as the authoritative width.
-      // Add a small buffer for the foam's visual softness.
-      rootRef.current.style.width = `${currentWidth + foamOffsetBase + foamVelocityPush + 5}px`;
+      // Reserve the full moving wave envelope, not just the flat panel width.
+      // The previous width calculation ignored layer spread and amplitude,
+      // which let the outer wave overlap the main workspace.
+      const stableReserve = 44 + (12 * widthScale);
+      const motionReserve = Math.min(42, waveVelocity * 0.025);
+      const reservedWidth = dominantWidth + stableReserve + motionReserve;
+      rootRef.current.style.width =
+        `${Math.ceil(Math.max(reservedWidth, maxFoamExtent + 4))}px`;
     }
 
     // 2. Handle Canvas Canvas Particles and Specular Highlight
@@ -174,7 +435,8 @@ export function OceanSidebar({
         
         // Draw specular highlight travelling along the crest
         const highlightY = (t * 120) % height;
-        const highlightWidth = currentWidth + Math.sin(highlightY * 0.01 + t) * 15;
+        const highlightWidth =
+          foamWidth + Math.sin(highlightY * 0.01 + t) * 15;
         
         ctx.beginPath();
         const gradient = ctx.createRadialGradient(highlightWidth - 5, highlightY, 0, highlightWidth - 5, highlightY, 30);
@@ -191,11 +453,12 @@ export function OceanSidebar({
   const spawnBubbles = (e: React.MouseEvent) => {
     const rect = e.currentTarget.getBoundingClientRect();
     for (let i = 0; i < 4; i++) {
+      const seed = (++bubbleSequenceRef.current * 4) + i;
       bubbles.current.push({
-        x: rect.left + 15 + Math.random() * 25,
-        y: rect.top + 15 + Math.random() * 10,
-        size: Math.random() * 2.5 + 1,
-        speed: Math.random() * 1.2 + 0.6,
+        x: rect.left + 15 + seededUnit(seed) * 25,
+        y: rect.top + 15 + seededUnit(seed + 17) * 10,
+        size: seededUnit(seed + 31) * 2.5 + 1,
+        speed: seededUnit(seed + 47) * 1.2 + 0.6,
         life: 1
       });
     }
@@ -214,6 +477,21 @@ export function OceanSidebar({
     { name: 'Settings', icon: Settings },
   ];
 
+  let renderedChildren: ReactNode =
+    typeof children === 'function' ? null : children;
+  if (typeof children === 'function') {
+    // The render prop only receives event handlers; their refs are read after
+    // user interaction, never while this render function is executing.
+    renderedChildren = children(
+      // eslint-disable-next-line react-hooks/refs
+      spawnBubbles,
+      isExpanded,
+      isHovered,
+      // eslint-disable-next-line react-hooks/refs
+      handleToggle,
+    );
+  }
+
   return (
     <div 
       ref={rootRef}
@@ -224,8 +502,8 @@ export function OceanSidebar({
         overflow: 'visible',
         flexShrink: 0,
       }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       {/* 
         This is where the magic happens. The glass blur is mathematically clipped to the 
@@ -250,10 +528,35 @@ export function OceanSidebar({
             <stop offset="0%" stopColor="rgba(8, 145, 178, 0.75)" />
             <stop offset="100%" stopColor="rgba(103, 232, 249, 0.55)" />
           </linearGradient>
+          <linearGradient id="dampSandGradient" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="rgba(69, 93, 86, 0.13)" />
+            <stop offset="72%" stopColor="rgba(100, 86, 63, 0.1)" />
+            <stop offset="100%" stopColor="rgba(100, 86, 63, 0)" />
+          </linearGradient>
+          <linearGradient id="wetSandGradient" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="rgba(55, 82, 78, 0.22)" />
+            <stop offset="78%" stopColor="rgba(91, 75, 52, 0.16)" />
+            <stop offset="100%" stopColor="rgba(91, 75, 52, 0.015)" />
+          </linearGradient>
         </defs>
         
+        {/* The high-water mark remains on the sand and evaporates in two stages. */}
+        <path
+          ref={dampSandPathRef}
+          data-ocean-layer="damp-sand"
+          fill="url(#dampSandGradient)"
+        />
+        <path
+          ref={wetSandPathRef}
+          data-ocean-layer="wet-sand"
+          fill="url(#wetSandGradient)"
+        />
         {/* Foam Layer - Solid White, pushed slightly forward */}
-        <path ref={foamPathRef} fill="rgba(255, 255, 255, 0.85)" />
+        <path
+          ref={foamPathRef}
+          data-ocean-layer="foam"
+          fill="rgba(255, 255, 255, 0.85)"
+        />
         {/* Back Layer - Bright cyan, lowered opacity to look like thinner water */}
         <path ref={path1Ref} fill="rgba(6, 182, 212, 0.55)" />
         {/* Middle Layer - Rich marine teal, semi-transparent to create a deep shadow overlay */}
@@ -276,7 +579,7 @@ export function OceanSidebar({
           className="relative z-[20] h-full flex flex-col"
           style={{ width: sidebarWidth }}
         >
-          {typeof children === 'function' ? children(spawnBubbles, isExpanded, isHovered) : children}
+          {renderedChildren}
         </motion.div>
       ) : (
         /* ── Standalone Demo Mode ── */
