@@ -538,6 +538,11 @@ export function OceanSidebar({
             <stop offset="78%" stopColor="rgba(91, 75, 52, 0.16)" />
             <stop offset="100%" stopColor="rgba(91, 75, 52, 0.015)" />
           </linearGradient>
+          {/* Glass gradient for the middle depth layer — deeper, richer, same glassy feel */}
+          <linearGradient id="middleGlassGradient" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="rgba(13, 148, 136, 0.7)" />
+            <stop offset="100%" stopColor="rgba(94, 208, 200, 0.45)" />
+          </linearGradient>
         </defs>
         
         {/* The high-water mark remains on the sand and evaporates in two stages. */}
@@ -559,8 +564,8 @@ export function OceanSidebar({
         />
         {/* Back Layer - Bright cyan, lowered opacity to look like thinner water */}
         <path ref={path1Ref} fill="rgba(6, 182, 212, 0.55)" />
-        {/* Middle Layer - Rich marine teal, semi-transparent to create a deep shadow overlay */}
-        <path ref={path2Ref} fill="rgba(21, 94, 117, 0.65)" />
+        {/* Middle Layer - Glass gradient bridging back and front, same glassy feel as the front */}
+        <path ref={path2Ref} fill="url(#middleGlassGradient)" />
         {/* Front Glass Layer */}
         <path ref={path3Ref} fill="url(#glassGradient)" />
       </svg>
