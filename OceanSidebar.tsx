@@ -658,12 +658,13 @@ export function OceanSidebar({
           fill="url(#wetSandGradient)"
           style={{ opacity: 'var(--ocean-alpha-scale, 1)' }}
         />
-        {/* Foam Layer - Solid White, pushed slightly forward */}
+        {/* Foam Layer - Solid White, pushed slightly forward. Deliberately
+            NOT scaled by --ocean-alpha-scale: the crest stays crisp white
+            even when the water below turns translucent. */}
         <path
           ref={foamPathRef}
           data-ocean-layer="foam"
           fill="rgba(var(--ocean-foam-rgb, 255, 255, 255), 0.85)"
-          style={{ opacity: 'var(--ocean-alpha-scale, 1)' }}
         />
         {/* Back Layer - Bright cyan, lowered opacity to look like thinner water */}
         <path ref={path1Ref} fill="rgba(var(--ocean-back-rgb, 6, 182, 212), 0.55)" style={{ opacity: 'var(--ocean-alpha-scale, 1)' }} />
