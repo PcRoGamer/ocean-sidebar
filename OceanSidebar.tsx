@@ -551,9 +551,27 @@ export function OceanSidebar({
         This is where the magic happens. The glass blur is mathematically clipped to the 
         exact shape of the front SVG wave. No rectangle bounding box exists anymore!
       */}
-      {/* Front glass blur — stays front-layer scoped so the deeper layers
-          keep their sharp parallax depth (all themes). */}
-      <div 
+      {/* Per-layer glass blur — every wave layer frosted individually so the
+          parallax depth reads through progressive frost (front strongest,
+          back lightest). Non-snow themes keep the front-only 12px look via
+          the 0px mid/back fallbacks. */}
+      <div
+        className="absolute inset-0 z-[5] pointer-events-none"
+        style={{
+          clipPath: 'url(#backClip)',
+          backdropFilter: 'blur(var(--ocean-blur-back, 0px))',
+          WebkitBackdropFilter: 'blur(var(--ocean-blur-back, 0px))',
+        }}
+      />
+      <div
+        className="absolute inset-0 z-[5] pointer-events-none"
+        style={{
+          clipPath: 'url(#midClip)',
+          backdropFilter: 'blur(var(--ocean-blur-mid, 0px))',
+          WebkitBackdropFilter: 'blur(var(--ocean-blur-mid, 0px))',
+        }}
+      />
+      <div
         className="absolute inset-0 z-[5] pointer-events-none"
         style={{
           clipPath: 'url(#frontClip)',
