@@ -109,6 +109,21 @@ export function OceanSidebar({
   const lastFrameTimeRef = useRef<number | null>(null);
   const bubbles = useRef<Array<{ x: number; y: number; size: number; speed: number; life: number }>>([]);
 
+  // Theme-driven canvas colors. The 2D canvas can't read CSS variables
+  // directly, so resolve --ocean-foam-rgb (with the canonical beach fallback)
+  // once per theme-class change; the signature check runs each frame.
+  const oceanCanvasVarsRef = useRef({ foamRgb: '255, 255, 255', themeSignature: '' });
+  const syncOceanCanvasVars = () => {
+    if (typeof document === 'undefined') return;
+    const signature = document.documentElement.className;
+    if (signature === oceanCanvasVarsRef.current.themeSignature) return;
+    const foam = getComputedStyle(document.documentElement)
+      .getPropertyValue('--ocean-foam-rgb')
+      .trim();
+    if (foam) oceanCanvasVarsRef.current.foamRgb = foam;
+    oceanCanvasVarsRef.current.themeSignature = signature;
+  };
+
   // The physics spring gives the wave its natural momentum and bounce
   const sidebarWidth = useSpring(isExpanded ? expandedWidth : collapsedWidth, {
     stiffness: 110,
@@ -412,6 +427,7 @@ export function OceanSidebar({
     }
 
     // 2. Handle Canvas Canvas Particles and Specular Highlight
+    syncOceanCanvasVars();
     const canvas = canvasRef.current;
     if (canvas) {
       const ctx = canvas.getContext('2d');
@@ -427,7 +443,7 @@ export function OceanSidebar({
           
           ctx.beginPath();
           ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(255, 255, 255, ${b.life})`;
+          ctx.fillStyle = `rgba(${oceanCanvasVarsRef.current.foamRgb}, ${b.life})`;
           ctx.fill();
           
           if (b.life <= 0) bubbles.current.splice(i, 1);
@@ -440,8 +456,8 @@ export function OceanSidebar({
         
         ctx.beginPath();
         const gradient = ctx.createRadialGradient(highlightWidth - 5, highlightY, 0, highlightWidth - 5, highlightY, 30);
-        gradient.addColorStop(0, 'rgba(255, 255, 255, 0.4)');
-        gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        gradient.addColorStop(0, `rgba(${oceanCanvasVarsRef.current.foamRgb}, 0.4)`);
+        gradient.addColorStop(1, `rgba(${oceanCanvasVarsRef.current.foamRgb}, 0)`);
         
         ctx.fillStyle = gradient;
         ctx.arc(highlightWidth - 5, highlightY, 30, 0, Math.PI * 2);
@@ -476,6 +492,15 @@ export function OceanSidebar({
     { name: 'Library', icon: Library },
     { name: 'Settings', icon: Settings },
   ];
+
+  // Fallback-only accent styles (demo nav). In app mode the host chrome owns
+  // the theme accent; the CSS var + fallback keeps the standalone demo cyan.
+  const oceanAccentStyle = {
+    color: 'rgb(var(--ocean-accent-rgb, 103, 232, 249))',
+    background: 'rgb(var(--ocean-accent-rgb, 103, 232, 249))',
+    boxShadow: '0 0 10px rgba(var(--ocean-accent-rgb, 103, 232, 249), 0.7)',
+  };
+  const oceanAccentColor = { color: oceanAccentStyle.color };
 
   let renderedChildren: ReactNode =
     typeof children === 'function' ? null : children;
@@ -523,25 +548,27 @@ export function OceanSidebar({
           <clipPath id="waterClip">
             <path ref={clipPathRef} />
           </clipPath>
-          {/* Luminous Teal/Cyan gradient for the front glass wave - Adjusted for higher transparency */}
+          {/* Theme-driven gradients. Stops read the --ocean-* RGB triplet
+              tokens published by the host app (fallbacks = canonical beach
+              palette, so the standalone demo renders unchanged). */}
           <linearGradient id="glassGradient" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="rgba(8, 145, 178, 0.75)" />
-            <stop offset="100%" stopColor="rgba(103, 232, 249, 0.55)" />
+            <stop offset="0%" style={{ stopColor: 'rgba(var(--ocean-front-deep-rgb, 8, 145, 178), 0.75)' }} />
+            <stop offset="100%" style={{ stopColor: 'rgba(var(--ocean-front-light-rgb, 103, 232, 249), 0.55)' }} />
           </linearGradient>
           <linearGradient id="dampSandGradient" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="rgba(69, 93, 86, 0.13)" />
-            <stop offset="72%" stopColor="rgba(100, 86, 63, 0.1)" />
-            <stop offset="100%" stopColor="rgba(100, 86, 63, 0)" />
+            <stop offset="0%" style={{ stopColor: 'rgba(var(--ocean-sand-damp-dark-rgb, 69, 93, 86), 0.13)' }} />
+            <stop offset="72%" style={{ stopColor: 'rgba(var(--ocean-sand-damp-light-rgb, 100, 86, 63), 0.1)' }} />
+            <stop offset="100%" style={{ stopColor: 'rgba(var(--ocean-sand-damp-light-rgb, 100, 86, 63), 0)' }} />
           </linearGradient>
           <linearGradient id="wetSandGradient" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="rgba(55, 82, 78, 0.22)" />
-            <stop offset="78%" stopColor="rgba(91, 75, 52, 0.16)" />
-            <stop offset="100%" stopColor="rgba(91, 75, 52, 0.015)" />
+            <stop offset="0%" style={{ stopColor: 'rgba(var(--ocean-sand-wet-dark-rgb, 55, 82, 78), 0.22)' }} />
+            <stop offset="78%" style={{ stopColor: 'rgba(var(--ocean-sand-wet-light-rgb, 91, 75, 52), 0.16)' }} />
+            <stop offset="100%" style={{ stopColor: 'rgba(var(--ocean-sand-wet-light-rgb, 91, 75, 52), 0.015)' }} />
           </linearGradient>
           {/* Glass gradient for the middle depth layer — deeper, richer, same glassy feel */}
           <linearGradient id="middleGlassGradient" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="rgba(13, 148, 136, 0.7)" />
-            <stop offset="100%" stopColor="rgba(94, 208, 200, 0.45)" />
+            <stop offset="0%" style={{ stopColor: 'rgba(var(--ocean-mid-deep-rgb, 13, 148, 136), 0.7)' }} />
+            <stop offset="100%" style={{ stopColor: 'rgba(var(--ocean-mid-light-rgb, 94, 208, 200), 0.45)' }} />
           </linearGradient>
         </defs>
         
@@ -560,10 +587,10 @@ export function OceanSidebar({
         <path
           ref={foamPathRef}
           data-ocean-layer="foam"
-          fill="rgba(255, 255, 255, 0.85)"
+          fill="rgba(var(--ocean-foam-rgb, 255, 255, 255), 0.85)"
         />
         {/* Back Layer - Bright cyan, lowered opacity to look like thinner water */}
-        <path ref={path1Ref} fill="rgba(6, 182, 212, 0.55)" />
+        <path ref={path1Ref} fill="rgba(var(--ocean-back-rgb, 6, 182, 212), 0.55)" />
         {/* Middle Layer - Glass gradient bridging back and front, same glassy feel as the front */}
         <path ref={path2Ref} fill="url(#middleGlassGradient)" />
         {/* Front Glass Layer */}
@@ -615,16 +642,22 @@ export function OceanSidebar({
                 {activeItem === item.name && (
                   <motion.div
                     layoutId="activeCurrent"
-                    className="absolute left-0 w-1 h-8 bg-cyan-300 rounded-r-full shadow-[0_0_10px_rgba(103,232,249,0.7)]"
+                    className="absolute left-0 w-1 h-8 rounded-r-full"
+                    style={oceanAccentStyle}
                   />
                 )}
                 
                 <div className="relative z-10 w-6 h-6 flex justify-center items-center shrink-0">
-                  <item.icon size={22} className={activeItem === item.name ? "text-cyan-300" : "text-white/70"} />
+                  <item.icon
+                    size={22}
+                    className={activeItem === item.name ? undefined : "text-white/70"}
+                    style={activeItem === item.name ? oceanAccentColor : undefined}
+                  />
                 </div>
                 
                 <motion.span 
-                  className={`whitespace-nowrap font-medium ${activeItem === item.name ? 'text-cyan-300' : 'text-white/80'}`}
+                  className={`whitespace-nowrap font-medium ${activeItem === item.name ? '' : 'text-white/80'}`}
+                  style={activeItem === item.name ? oceanAccentColor : undefined}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: isHovered ? 1 : 0 }}
                 >
@@ -639,9 +672,13 @@ export function OceanSidebar({
              {navItems.map((item) => (
                <div key={item.name + 'collapsed'} className="w-10 h-10 flex justify-center items-center relative">
                  {activeItem === item.name && (
-                    <div className="absolute left-[-12px] w-1 h-6 bg-cyan-300 rounded-r-full shadow-[0_0_10px_rgba(103,232,249,0.7)]" />
+                    <div className="absolute left-[-12px] w-1 h-6 rounded-r-full" style={oceanAccentStyle} />
                  )}
-                 <item.icon size={20} className={activeItem === item.name ? "text-cyan-300" : "text-white/60"} />
+                 <item.icon
+                   size={20}
+                   className={activeItem === item.name ? undefined : "text-white/60"}
+                   style={activeItem === item.name ? oceanAccentColor : undefined}
+                 />
                </div>
              ))}
           </div>
