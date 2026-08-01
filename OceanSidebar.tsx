@@ -650,24 +650,27 @@ export function OceanSidebar({
           ref={dampSandPathRef}
           data-ocean-layer="damp-sand"
           fill="url(#dampSandGradient)"
+          style={{ opacity: 'var(--ocean-alpha-scale, 1)' }}
         />
         <path
           ref={wetSandPathRef}
           data-ocean-layer="wet-sand"
           fill="url(#wetSandGradient)"
+          style={{ opacity: 'var(--ocean-alpha-scale, 1)' }}
         />
         {/* Foam Layer - Solid White, pushed slightly forward */}
         <path
           ref={foamPathRef}
           data-ocean-layer="foam"
           fill="rgba(var(--ocean-foam-rgb, 255, 255, 255), 0.85)"
+          style={{ opacity: 'var(--ocean-alpha-scale, 1)' }}
         />
         {/* Back Layer - Bright cyan, lowered opacity to look like thinner water */}
-        <path ref={path1Ref} fill="rgba(var(--ocean-back-rgb, 6, 182, 212), 0.55)" />
+        <path ref={path1Ref} fill="rgba(var(--ocean-back-rgb, 6, 182, 212), 0.55)" style={{ opacity: 'var(--ocean-alpha-scale, 1)' }} />
         {/* Middle Layer - Glass gradient bridging back and front, same glassy feel as the front */}
-        <path ref={path2Ref} fill="url(#middleGlassGradient)" />
+        <path ref={path2Ref} fill="url(#middleGlassGradient)" style={{ opacity: 'var(--ocean-alpha-scale, 1)' }} />
         {/* Front Glass Layer */}
-        <path ref={path3Ref} fill="url(#glassGradient)" />
+        <path ref={path3Ref} fill="url(#glassGradient)" style={{ opacity: 'var(--ocean-alpha-scale, 1)' }} />
       </svg>
 
       {/* Canvas for interaction bubbles & lighting */}
