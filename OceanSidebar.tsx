@@ -97,7 +97,9 @@ export function OceanSidebar({
   const path2Ref = useRef<SVGPathElement | null>(null);
   const path3Ref = useRef<SVGPathElement | null>(null);
   const foamPathRef = useRef<SVGPathElement | null>(null);
-  const foamClipPathRef = useRef<SVGPathElement | null>(null);
+  const frontClipPathRef = useRef<SVGPathElement | null>(null);
+  const midClipPathRef = useRef<SVGPathElement | null>(null);
+  const backClipPathRef = useRef<SVGPathElement | null>(null);
   const wetSandPathRef = useRef<SVGPathElement | null>(null);
   const dampSandPathRef = useRef<SVGPathElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -405,9 +407,12 @@ export function OceanSidebar({
 
     // Update SVG DOM directly for 60fps
     if (path3Ref.current) path3Ref.current.setAttribute('d', pathFront);
-    // The frost clip follows the combined foam outline so blur + veil cover
-    // the whole water envelope (front + mid + back peaks), not just the front.
-    if (foamClipPathRef.current) foamClipPathRef.current.setAttribute('d', pathFoam);
+    // Frost clips follow each layer so blur + veil stay layer-scoped: the
+    // front carries the blur, and the icy veil fades with depth (front >
+    // mid > back) instead of flattening the three layers into one pane.
+    if (frontClipPathRef.current) frontClipPathRef.current.setAttribute('d', pathFront);
+    if (midClipPathRef.current) midClipPathRef.current.setAttribute('d', pathMid);
+    if (backClipPathRef.current) backClipPathRef.current.setAttribute('d', pathBack);
     if (path2Ref.current) path2Ref.current.setAttribute('d', pathMid);
     if (path1Ref.current) path1Ref.current.setAttribute('d', pathBack);
     if (foamPathRef.current) foamPathRef.current.setAttribute('d', pathFoam);
@@ -546,19 +551,38 @@ export function OceanSidebar({
         This is where the magic happens. The glass blur is mathematically clipped to the 
         exact shape of the front SVG wave. No rectangle bounding box exists anymore!
       */}
+      {/* Front glass blur — stays front-layer scoped so the deeper layers
+          keep their sharp parallax depth (all themes). */}
       <div 
         className="absolute inset-0 z-[5] pointer-events-none"
         style={{
-          clipPath: 'url(#foamClip)',
+          clipPath: 'url(#frontClip)',
           backdropFilter: 'blur(var(--ocean-blur, 12px))',
           WebkitBackdropFilter: 'blur(var(--ocean-blur, 12px))',
         }}
       />
-      {/* Frosted veil — icy tint layered over the front water (snow theme). */}
+      {/* Frosted veil — icy tint layered per wave layer (snow theme only),
+          strongest at the front and fading with depth. */}
       <div
         className="absolute inset-0 z-[6] pointer-events-none"
         style={{
-          clipPath: 'url(#foamClip)',
+          clipPath: 'url(#backClip)',
+          backgroundColor: 'rgb(var(--ocean-frost-rgb, 255, 255, 255))',
+          opacity: 'calc(var(--ocean-frost-opacity, 0) * 0.35)',
+        }}
+      />
+      <div
+        className="absolute inset-0 z-[6] pointer-events-none"
+        style={{
+          clipPath: 'url(#midClip)',
+          backgroundColor: 'rgb(var(--ocean-frost-rgb, 255, 255, 255))',
+          opacity: 'calc(var(--ocean-frost-opacity, 0) * 0.6)',
+        }}
+      />
+      <div
+        className="absolute inset-0 z-[6] pointer-events-none"
+        style={{
+          clipPath: 'url(#frontClip)',
           backgroundColor: 'rgb(var(--ocean-frost-rgb, 255, 255, 255))',
           opacity: 'var(--ocean-frost-opacity, 0)',
         }}
@@ -570,8 +594,14 @@ export function OceanSidebar({
         style={{ width: `${Math.max(windowSize.width, expandedWidth + 200)}px` }} 
       >
         <defs>
-          <clipPath id="foamClip">
-            <path ref={foamClipPathRef} />
+          <clipPath id="frontClip">
+            <path ref={frontClipPathRef} />
+          </clipPath>
+          <clipPath id="midClip">
+            <path ref={midClipPathRef} />
+          </clipPath>
+          <clipPath id="backClip">
+            <path ref={backClipPathRef} />
           </clipPath>
           {/* Theme-driven gradients. Stops read the --ocean-* RGB triplet
               tokens published by the host app (fallbacks = canonical beach
