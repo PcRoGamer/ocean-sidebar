@@ -109,19 +109,28 @@ export function OceanSidebar({
   const lastFrameTimeRef = useRef<number | null>(null);
   const bubbles = useRef<Array<{ x: number; y: number; size: number; speed: number; life: number }>>([]);
 
-  // Theme-driven canvas colors. The 2D canvas can't read CSS variables
-  // directly, so resolve --ocean-foam-rgb (with the canonical beach fallback)
-  // once per theme-class change; the signature check runs each frame.
-  const oceanCanvasVarsRef = useRef({ foamRgb: '255, 255, 255', themeSignature: '' });
-  const syncOceanCanvasVars = () => {
+  // Theme-driven water tuning. The canvas can't read CSS variables directly,
+  // so resolve the --ocean-* tokens (with the canonical beach fallbacks) once
+  // per theme-class change; the signature check runs each frame.
+  const oceanThemeVarsRef = useRef({
+    foamRgb: '255, 255, 255',
+    waveScale: 1,
+    themeSignature: '',
+  });
+  const syncOceanThemeVars = () => {
     if (typeof document === 'undefined') return;
     const signature = document.documentElement.className;
-    if (signature === oceanCanvasVarsRef.current.themeSignature) return;
-    const foam = getComputedStyle(document.documentElement)
-      .getPropertyValue('--ocean-foam-rgb')
-      .trim();
-    if (foam) oceanCanvasVarsRef.current.foamRgb = foam;
-    oceanCanvasVarsRef.current.themeSignature = signature;
+    if (signature === oceanThemeVarsRef.current.themeSignature) return;
+    const styles = getComputedStyle(document.documentElement);
+    const read = (name: string, fallback: string) => {
+      const value = styles.getPropertyValue(name).trim();
+      return value || fallback;
+    };
+    oceanThemeVarsRef.current = {
+      foamRgb: read('--ocean-foam-rgb', '255, 255, 255'),
+      waveScale: Number.parseFloat(read('--ocean-wave-scale', '1')) || 1,
+      themeSignature: signature,
+    };
   };
 
   // The physics spring gives the wave its natural momentum and bounce
@@ -199,6 +208,7 @@ export function OceanSidebar({
         : Math.min(0.05, Math.max(0, (time - lastFrameTimeRef.current) / 1000));
     lastFrameTimeRef.current = time;
     
+    syncOceanThemeVars();
     const frontWidth = sidebarWidth.get();
     const midWidth = midWaveWidth.get();
     const backWidth = backWaveWidth.get();
@@ -222,7 +232,7 @@ export function OceanSidebar({
     
     // Scale down amplitude when sidebar is thin
     const widthScale = Math.min(1, dominantWidth / 200);
-    const baseAmplitude = 12 * widthScale;
+    const baseAmplitude = 12 * widthScale * oceanThemeVarsRef.current.waveScale;
 
     const frequency = 0.0025; // Smoother, wider peaks
     const numPoints = 40; // Increased fidelity for smoother soft-max combining
@@ -301,7 +311,8 @@ export function OceanSidebar({
         const wingOffset =
           Math.sin(t * 10.5 + layerOffset * 0.9) *
           (3.4 + layerOffset * 1.05) *
-          wingEnergy;
+          wingEnergy *
+          oceanThemeVarsRef.current.waveScale;
         
         return layerWidth + xOffset + parallaxLag + wingOffset + staticSpread;
       };
@@ -427,7 +438,6 @@ export function OceanSidebar({
     }
 
     // 2. Handle Canvas Canvas Particles and Specular Highlight
-    syncOceanCanvasVars();
     const canvas = canvasRef.current;
     if (canvas) {
       const ctx = canvas.getContext('2d');
@@ -443,7 +453,7 @@ export function OceanSidebar({
           
           ctx.beginPath();
           ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(${oceanCanvasVarsRef.current.foamRgb}, ${b.life})`;
+          ctx.fillStyle = `rgba(${oceanThemeVarsRef.current.foamRgb}, ${b.life})`;
           ctx.fill();
           
           if (b.life <= 0) bubbles.current.splice(i, 1);
@@ -456,8 +466,8 @@ export function OceanSidebar({
         
         ctx.beginPath();
         const gradient = ctx.createRadialGradient(highlightWidth - 5, highlightY, 0, highlightWidth - 5, highlightY, 30);
-        gradient.addColorStop(0, `rgba(${oceanCanvasVarsRef.current.foamRgb}, 0.4)`);
-        gradient.addColorStop(1, `rgba(${oceanCanvasVarsRef.current.foamRgb}, 0)`);
+        gradient.addColorStop(0, `rgba(${oceanThemeVarsRef.current.foamRgb}, 0.4)`);
+        gradient.addColorStop(1, `rgba(${oceanThemeVarsRef.current.foamRgb}, 0)`);
         
         ctx.fillStyle = gradient;
         ctx.arc(highlightWidth - 5, highlightY, 30, 0, Math.PI * 2);
@@ -535,8 +545,21 @@ export function OceanSidebar({
         exact shape of the front SVG wave. No rectangle bounding box exists anymore!
       */}
       <div 
-        className="absolute inset-0 z-[5] backdrop-blur-md pointer-events-none"
-        style={{ clipPath: 'url(#waterClip)' }}
+        className="absolute inset-0 z-[5] pointer-events-none"
+        style={{
+          clipPath: 'url(#waterClip)',
+          backdropFilter: 'blur(var(--ocean-blur, 12px))',
+          WebkitBackdropFilter: 'blur(var(--ocean-blur, 12px))',
+        }}
+      />
+      {/* Frosted veil — icy tint layered over the front water (snow theme). */}
+      <div
+        className="absolute inset-0 z-[6] pointer-events-none"
+        style={{
+          clipPath: 'url(#waterClip)',
+          backgroundColor: 'rgb(var(--ocean-frost-rgb, 255, 255, 255))',
+          opacity: 'var(--ocean-frost-opacity, 0)',
+        }}
       />
       
       {/* Organic Wave SVGs */}
